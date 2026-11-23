@@ -3,12 +3,10 @@
 It is sent as `python3 -c <this file>` with a JSON request on stdin, so the room
 needs nothing but the stock Python image. It prints one JSON object. Untrusted
 input (the question, fetched pages, model-written code) only ever touches the
-room, never the bot host. The Chutes, X and Cathedral keys never enter the room; an
-optional BRAVE_API_KEY is passed to the search command only.
+room, never the bot host. No key of any kind is ever sent into the room.
 """
 import html
 import json
-import os
 import re
 import subprocess
 import sys
@@ -47,16 +45,6 @@ def _ddg(query, limit):
     return results
 
 
-def _brave(query, limit, key):
-    req = urllib.request.Request(
-        "https://api.search.brave.com/res/v1/web/search?count=%d&q=%s" % (limit, urllib.parse.quote_plus(query)),
-        headers={"Accept": "application/json", "X-Subscription-Token": key, "User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        data = json.loads(resp.read())
-    return [{"title": r.get("title", ""), "url": r.get("url", ""), "snippet": _text(r.get("description", ""))}
-            for r in (data.get("web") or {}).get("results", [])[:limit]]
-
-
 def _wikipedia(query, limit):
     data = json.loads(_get("https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&srlimit=%d"
                            "&srsearch=%s" % (limit, urllib.parse.quote_plus(query))))
@@ -65,14 +53,12 @@ def _wikipedia(query, limit):
 
 
 def search(query, limit=5):
-    """Brave Search when BRAVE_API_KEY is set for this one command, else DuckDuckGo, else Wikipedia.
+    """DuckDuckGo, else Wikipedia. Keyless on purpose: no key ever enters the sandbox.
 
     DuckDuckGo often refuses datacenter addresses; Wikipedia always answers but only for encyclopedic facts.
     """
     tried = []
-    key = os.environ.get("BRAVE_API_KEY")
-    engines = ([("brave", lambda: _brave(query, limit, key))] if key else []) + [
-        ("duckduckgo", lambda: _ddg(query, limit)), ("wikipedia", lambda: _wikipedia(query, limit))]
+    engines = [("duckduckgo", lambda: _ddg(query, limit)), ("wikipedia", lambda: _wikipedia(query, limit))]
     for name, run in engines:
         try:
             results = run()

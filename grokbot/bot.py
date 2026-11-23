@@ -21,6 +21,7 @@ from .agent import Agent, AgentConfig, Answer
 from .btauth import signer_from_wallet
 from .cathedral import Cathedral, CathedralError
 from .chutes import Chutes, ChutesError
+from .search import BraveSearch
 from .x_api import MockX, XClient, XError, build_thread
 
 log = logging.getLogger("grokbot")
@@ -216,7 +217,7 @@ def make_agent() -> Agent:
                          lifetime_seconds=int(env("CATHEDRAL_ROOM_SECONDS", "600")),
                          max_spend_usd=env("CATHEDRAL_ROOM_MAX_USD", "0.002"))
     brave = env("BRAVE_API_KEY")
-    return Agent(make_cathedral(), chutes, config, search_env={"BRAVE_API_KEY": brave} if brave else None)
+    return Agent(make_cathedral(), chutes, config, brave=BraveSearch(brave) if brave else None)
 
 
 def make_x(mock: bool):

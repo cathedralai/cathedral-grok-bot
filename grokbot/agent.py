@@ -16,6 +16,7 @@ from typing import Optional
 
 from .cathedral import Cathedral, CathedralError
 from .chutes import Chutes
+from .search import BraveError, BraveSearch
 
 log = logging.getLogger("grokbot.agent")
 
@@ -64,12 +65,13 @@ class AgentConfig:
 
 class Agent:
     def __init__(self, cathedral: Cathedral, chutes: Chutes, config: Optional[AgentConfig] = None,
-                 search_env: Optional[dict] = None):
+                 brave: Optional[BraveSearch] = None):
         self.cathedral = cathedral
         self.chutes = chutes
         self.config = config or AgentConfig()
-        # Only for the search command, never for model-written code: e.g. {"BRAVE_API_KEY": "..."}.
-        self.search_env = search_env or {}
+        # Brave runs on the bot host. A key must never enter the sandbox: model-written code runs there
+        # first and could plant a hook (usercustomize.py, sitecustomize.py) that reads a later command's env.
+        self.brave = brave
 
     def answer(self, thread: list, question_id: str = "") -> Answer:
         """thread: oldest first, each {"author": "...", "text": "..."}; the last item is the question."""
@@ -114,10 +116,14 @@ class Agent:
             return json.dumps({"error": "arguments were not JSON"})
         if name not in ("search", "fetch", "run_python"):
             return json.dumps({"error": "unknown tool " + name})
+        if name == "search" and self.brave is not None:
+            try:
+                return json.dumps({"engine": "brave", "results": self.brave.search(str(args.get("query", "")))})[:7000]
+            except BraveError as exc:
+                log.warning("brave search failed (%s); searching from the sandbox instead", exc)
         try:
             out = self.cathedral.exec(room, ["python3", "-c", ROOM_TOOLS_SRC],
-                                      stdin=json.dumps({"tool": name, "args": args}), timeout_seconds=40,
-                                      env=self.search_env if name == "search" and self.search_env else None)
+                                      stdin=json.dumps({"tool": name, "args": args}), timeout_seconds=40)
         except CathedralError as exc:
             return json.dumps({"error": str(exc)})
         text = (out.get("stdout") or "").strip() or json.dumps({"error": (out.get("stderr") or "")[-500:]})

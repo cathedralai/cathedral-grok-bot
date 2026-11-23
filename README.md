@@ -113,7 +113,7 @@ X mention -> thread (up to 8 parents) -> Chutes model
 ## Why a sandbox per answer
 
 - The question, fetched pages and model-written code are untrusted. They run in a confidential sandbox, not on your bot host.
-- Your Chutes, X and Cathedral keys never enter the sandbox. The optional `BRAVE_API_KEY` goes to the search command only.
+- No key ever enters the sandbox: Chutes, X, Cathedral and the optional Brave key stay on your bot host. Model-written code runs in the sandbox, so anything placed there could be read by it.
 - Each create and each command leaves a receipt signed by Cathedral; the create receipt carries the confidential host's own signed room receipt. The reply links the create receipt (public, no key). What a receipt proves and what it does not: https://cathedral.computer/docs/receipts/
 - A receipt proves Cathedral signed a statement about the create or the command. It does not prove the answer is right.
 
@@ -130,7 +130,7 @@ Defaults you can change in `.env`:
 | `CATHEDRAL_ROOM_MAX_USD` | `0.002` | Most one sandbox may cost |
 | `ANSWERS_PER_AUTHOR_PER_HOUR` | `5` | Per-author limit; mentions over it are skipped |
 | `ANSWERS_PER_HOUR` | `200` | Total limit; mentions over it wait for a later poll |
-| `BRAVE_API_KEY` | empty | Better web search. Without it: DuckDuckGo, then Wikipedia (DuckDuckGo often refuses datacenter addresses) |
+| `BRAVE_API_KEY` | empty | Better web search, called from the bot host. Without it the sandbox searches DuckDuckGo, then Wikipedia (DuckDuckGo often refuses datacenter addresses) |
 
 ## Limits to know
 

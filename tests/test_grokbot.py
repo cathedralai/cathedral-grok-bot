@@ -184,15 +184,31 @@ class AgentTest(unittest.TestCase):
             agent.answer([{"author": "a", "text": "q"}])
         self.assertEqual(api.deleted, ["room-1"])
 
-    def test_search_key_goes_to_search_only(self):
+    def test_brave_runs_on_the_host_and_no_key_enters_the_sandbox(self):
+        from grokbot.search import BraveSearch
         api = FakeAPI()
-        chutes = FakeChutes([tool_call("search", {"query": "q"}), tool_call("run_python", {"code": "1"}),
+        brave_calls = []
+
+        def brave_transport(method, url, headers, body, timeout):
+            brave_calls.append((url, headers))
+            return 200, json.dumps({"web": {"results": [{"title": "t", "url": "https://u", "description": "<b>d</b>"}]}}).encode()
+        chutes = FakeChutes([tool_call("run_python", {"code": "1"}), tool_call("search", {"query": "q"}),
                              {"content": "ok"}])
-        agent = Agent(cathedral(api), Chutes("ck", "m", transport=chutes), search_env={"BRAVE_API_KEY": "bk"})
+        agent = Agent(cathedral(api), Chutes("ck", "m", transport=chutes),
+                      brave=BraveSearch("brave-secret-sentinel", transport=brave_transport))
         agent.answer([{"author": "a", "text": "q"}])
-        execs = [json.loads(c[3]) for c in api.calls if c[1].endswith("/exec")]
-        self.assertEqual(execs[0]["env"], {"BRAVE_API_KEY": "bk"})
-        self.assertNotIn("env", execs[1])
+        self.assertEqual(len(brave_calls), 1)
+        self.assertEqual(brave_calls[0][1]["X-Subscription-Token"], "brave-secret-sentinel")
+        execs = [c for c in api.calls if c[1].endswith("/exec")]
+        self.assertEqual(len(execs), 1)  # only run_python went to the sandbox
+        for c in api.calls:
+            self.assertNotIn(b"brave-secret-sentinel", c[3] or b"")
+            self.assertNotIn("env", json.loads(c[3]) if c[3] else {})
+        self.assertIn('"snippet": "d"', chutes.seen[2]["messages"][-1]["content"])
+
+    def test_room_tools_never_read_a_search_key(self):
+        self.assertNotIn("BRAVE", ROOM_TOOLS_SRC)
+        self.assertNotIn("os.environ", ROOM_TOOLS_SRC)
 
     def test_last_step_has_no_tools(self):
         api = FakeAPI()

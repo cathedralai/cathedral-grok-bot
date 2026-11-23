@@ -1,0 +1,5 @@
+[
+  {"id": "1001", "author": "alice", "text": "Bittensor subnets are getting wild this year"},
+  {"id": "1002", "author": "bob", "text": "@yourbot what is 2 to the power 64, exactly?", "replied_to": null},
+  {"id": "1003", "author": "carol", "text": "@yourbot how many subnets does Bittensor have right now?", "replied_to": "1001"}
+]

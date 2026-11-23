@@ -1,0 +1,10 @@
+.env
+*.pyc
+__pycache__/
+.venv/
+venv/
+grokbot_state.json
+mock_replies.jsonl
+*.egg-info/
+build/
+dist/

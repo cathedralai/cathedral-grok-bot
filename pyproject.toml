@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cathedral-grok-bot"
+version = "0.1.0"
+description = "An X mention bot: every answer runs in a Cathedral confidential sandbox, inference on Chutes, a receipt link in every reply."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+gamma = ["bittensor-wallet>=3"]
+
+[project.scripts]
+grokbot = "grokbot.bot:main"
+
+[tool.setuptools]
+packages = ["grokbot"]
+
+[tool.setuptools.package-data]
+grokbot = ["room_tools.py"]

@@ -1,17 +1,17 @@
 # cathedral-grok-bot
 
-An X mention bot you can fork. Someone tags your bot with a question; the bot reads the thread, thinks with a model on [Chutes](https://chutes.ai), runs its web search, page fetches and Python inside a fresh [Cathedral](https://cathedral.computer) sealed room (AMD SEV-SNP), deletes the room, and replies with the answer and a link to the room's signed receipt.
+An X mention bot you can fork. Someone tags your bot with a question; the bot reads the thread, thinks with a model on [Chutes](https://chutes.ai), runs its web search, page fetches and Python inside a fresh [Cathedral](https://cathedral.computer) confidential sandbox (AMD SEV-SNP), deletes the sandbox, and replies with the answer and a link to the sandbox's signed receipt.
 
 ```
 @yourbot what is 2 to the power 64, exactly?
 
   2 to the power of 64 is 18,446,744,073,709,551,616.
 
-  Ran in a sealed Cathedral room. Receipt: https://cathedral.computer/v1/receipts/...
+  Ran in a confidential Cathedral sandbox. Receipt: https://cathedral.computer/v1/receipts/...
 ```
 
 - Python 3.10+, standard library only. Paying with Gamma adds one package (`bittensor-wallet`).
-- One room per answer: `POST /v1/sandboxes`, `POST /v1/sandboxes/{id}/exec` per tool call, `DELETE /v1/sandboxes/{id}`.
+- One sandbox per answer: `POST /v1/sandboxes`, `POST /v1/sandboxes/{id}/exec` per tool call, `DELETE /v1/sandboxes/{id}`.
 - Pay with a Cathedral API key, or with Gamma from your own Bittensor hotkey (btauth/1, no account).
 - Mock X mode: run the whole bot from a JSON file, no X keys.
 - MIT licensed. Guide, prices and measured numbers: https://cathedral.computer/grok-bot
@@ -94,49 +94,49 @@ Run it under `systemd`, `tmux` or any process manager. State (the last mention a
 X mention -> thread (up to 8 parents) -> Chutes model
                                           | tool call: search / fetch / run_python
                                           v
-                      Cathedral sealed room (one per answer)
+                      Cathedral confidential sandbox (one per answer)
                       exec: python3 -c room_tools.py  <- JSON on stdin
                                           |
-                      answer + receipt link -> reply on X -> DELETE room
+                      answer + receipt link -> reply on X -> DELETE sandbox
 ```
 
 | File | What it does |
 | --- | --- |
 | `grokbot/bot.py` | Poll loop, state, rate limits, reply splitting, CLI |
-| `grokbot/agent.py` | The agent step: room create, model loop, tools in the room, delete |
-| `grokbot/room_tools.py` | The program that runs inside the room for each tool call |
+| `grokbot/agent.py` | The agent step: sandbox create, model loop, tools in the sandbox, delete |
+| `grokbot/room_tools.py` | The program that runs inside the sandbox for each tool call |
 | `grokbot/cathedral.py` | Cathedral HTTPS client (API key or btauth/1), retry rules from the agent contract |
 | `grokbot/btauth.py` | btauth/1 request signing with a Bittensor hotkey |
 | `grokbot/chutes.py` | Chutes chat completions |
 | `grokbot/x_api.py` | X API v2 with OAuth 1.0a, thread building, mock X |
 
-## Why a room per answer
+## Why a sandbox per answer
 
-- The question, fetched pages and model-written code are untrusted. They run in a room, not on your bot host.
-- Your Chutes, X and Cathedral keys never enter the room. The optional `BRAVE_API_KEY` goes to the search command only.
-- Each create and each command leaves a receipt signed by Cathedral; the create receipt carries the hotel's own signed room receipt. The reply links the create receipt (public, no key). What a receipt proves and what it does not: https://cathedral.computer/docs/receipts/
+- The question, fetched pages and model-written code are untrusted. They run in a confidential sandbox, not on your bot host.
+- Your Chutes, X and Cathedral keys never enter the sandbox. The optional `BRAVE_API_KEY` goes to the search command only.
+- Each create and each command leaves a receipt signed by Cathedral; the create receipt carries the confidential host's own signed room receipt. The reply links the create receipt (public, no key). What a receipt proves and what it does not: https://cathedral.computer/docs/receipts/
 - A receipt proves Cathedral signed a statement about the create or the command. It does not prove the answer is right.
 
 ## Cost
 
-A `sealed-1x2` room (1 vCPU, 2 GiB) is $0.005 per hour, billed by the second. Each create holds `rate x lifetime` (600 s by default, so about $0.00083) and the delete returns the unused part. Measured cost per 1,000 answers, with method and sample size: https://cathedral.computer/grok-bot
+A `sealed-1x2` sandbox (1 vCPU, 2 GiB) is $0.005 per hour, billed by the second. Each create holds `rate x lifetime` (600 s by default, so about $0.00083) and the delete returns the unused part. Measured cost per 1,000 answers, with method and sample size: https://cathedral.computer/grok-bot
 
 Defaults you can change in `.env`:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `CATHEDRAL_TEMPLATE` | `sealed-1x2` | Room size (`sealed-2x4`, `sealed-4x8`, `sealed-8x16`) |
-| `CATHEDRAL_ROOM_SECONDS` | `600` | Room lifetime; the room stops by itself after this even if the bot dies |
-| `CATHEDRAL_ROOM_MAX_USD` | `0.002` | Most one room may cost |
+| `CATHEDRAL_TEMPLATE` | `sealed-1x2` | Sandbox size (`sealed-2x4`, `sealed-4x8`, `sealed-8x16`) |
+| `CATHEDRAL_ROOM_SECONDS` | `600` | Sandbox lifetime; the sandbox stops by itself after this even if the bot dies |
+| `CATHEDRAL_ROOM_MAX_USD` | `0.002` | Most one sandbox may cost |
 | `ANSWERS_PER_AUTHOR_PER_HOUR` | `5` | Per-author limit |
 | `ANSWERS_PER_HOUR` | `200` | Total limit |
 | `BRAVE_API_KEY` | empty | Better web search. Without it: DuckDuckGo, then Wikipedia (DuckDuckGo often refuses datacenter addresses) |
 
 ## Limits to know
 
-- An account runs 2 live sealed rooms at once by default; a 429 `sealed_room_limit_reached` means that. The bot answers one mention at a time, so the default is enough; ask Cathedral to raise it if you answer in parallel.
+- An account runs 2 live confidential sandboxes at once by default; a 429 `sealed_room_limit_reached` means that. The bot answers one mention at a time, so the default is enough; ask Cathedral to raise it if you answer in parallel.
 - `exec` waits up to 45 seconds; tool commands here time out at 40.
-- Rooms live at most 24 hours. Full list: https://cathedral.computer/docs/sandboxes/limits/
+- Sandboxes live at most 24 hours. Full list: https://cathedral.computer/docs/sandboxes/limits/
 - 402 `insufficient_credits` (API key) or `insufficient_balance` (Gamma): add credit or spend more Gamma. Nothing ran and nothing was charged.
 
 ## Tests
@@ -145,12 +145,12 @@ Defaults you can change in `.env`:
 python3 -m unittest discover -s tests -v
 ```
 
-The tests need no network and no keys: Cathedral, Chutes and X are fakes. They cover btauth/1 signing, the create retry rules, the room always being deleted, keys never reaching the room, OAuth 1.0a against X's published example, thread building, reply splitting and the mock bot end to end.
+The tests need no network and no keys: Cathedral, Chutes and X are fakes. They cover btauth/1 signing, the create retry rules, the sandbox always being deleted, keys never reaching the sandbox, OAuth 1.0a against X's published example, thread building, reply splitting and the mock bot end to end.
 
 ## Security
 
 - Keep `.env` out of git (it is in `.gitignore`). Never put a key in a label, a command or a log.
-- Mentions are untrusted input: the system prompt tells the model that thread text and tool output are data, and everything they can trigger runs in the room.
+- Mentions are untrusted input: the system prompt tells the model that thread text and tool output are data, and everything they can trigger runs in the sandbox.
 - Report a problem in this repo's issues, or to Cathedral at https://cathedral.computer.
 
 ## License

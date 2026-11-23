@@ -26,7 +26,7 @@ log = logging.getLogger("grokbot")
 
 X_LIMIT = 280
 X_URL_LEN = 23  # X counts every link as 23 characters
-RECEIPT_PREFIX = "Ran in a sealed Cathedral room. Receipt: "
+RECEIPT_PREFIX = "Ran in a confidential Cathedral sandbox. Receipt: "
 
 
 def env(name: str, default: Optional[str] = None) -> Optional[str]:
@@ -183,7 +183,7 @@ def make_x(mock: bool):
 
 def main(argv=None) -> int:
     load_dotenv()
-    p = argparse.ArgumentParser(prog="grokbot", description="X mention bot on Cathedral sealed rooms + Chutes")
+    p = argparse.ArgumentParser(prog="grokbot", description="X mention bot on Cathedral confidential sandboxes + Chutes")
     p.add_argument("--ask", help="answer one question and print it; no X needed")
     p.add_argument("--mock", action="store_true", help="read mentions from a file instead of X (no X keys)")
     p.add_argument("--once", action="store_true", help="poll once and exit")

@@ -80,12 +80,20 @@ class XClient:
             self._me = self._call("GET", "/users/me")["data"]
         return self._me
 
-    def mentions(self, since_id: Optional[str]) -> list:
+    def mentions(self, since_id: Optional[str], max_pages: int = 10) -> list:
         """New mentions, oldest first, each {"id", "author", "text", "conversation_id", "replied_to"}."""
-        data = self._call("GET", f"/users/{self.me()['id']}/mentions", {
-            "since_id": since_id, "max_results": 20, "tweet.fields": TWEET_FIELDS,
-            "expansions": "author_id", "user.fields": "username"})
-        return list(reversed(_normalize(data)))
+        # Collect every page before answering: answering the newest page first would move since_id past
+        # older mentions on later pages and skip them for good.
+        posts, token = [], None
+        for _ in range(max_pages):
+            data = self._call("GET", f"/users/{self.me()['id']}/mentions", {
+                "since_id": since_id, "max_results": 100, "pagination_token": token,
+                "tweet.fields": TWEET_FIELDS, "expansions": "author_id", "user.fields": "username"})
+            posts.extend(_normalize(data))
+            token = (data.get("meta") or {}).get("next_token")
+            if not token:
+                break
+        return sorted(posts, key=lambda p: int(p["id"]))
 
     def get_posts(self, ids: list) -> list:
         if not ids:

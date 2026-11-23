@@ -10,6 +10,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import sys
 import time
 from collections import defaultdict, deque
@@ -47,9 +48,32 @@ def load_dotenv(path: str = ".env") -> None:
         os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
+def _weight(ch: str) -> int:
+    """X counts these ranges as 1 and every other character (CJK, emoji) as 2."""
+    cp = ord(ch)
+    return 1 if cp <= 0x10FF or 0x2000 <= cp <= 0x200D or 0x2010 <= cp <= 0x201F or 0x2032 <= cp <= 0x2037 else 2
+
+
 def x_length(text: str) -> int:
-    """X's weighted length, close enough for plain text: links count as 23."""
-    return sum(X_URL_LEN if w.startswith(("http://", "https://")) else len(w) for w in text.split(" ")) + text.count(" ")
+    """X's weighted length: links count as 23, CJK and emoji as 2."""
+    total = 0
+    for token in re.split(r"(\s+)", text):
+        if token.startswith(("http://", "https://")):
+            total += X_URL_LEN
+        else:
+            total += sum(_weight(c) for c in token)
+    return total
+
+
+def _fit(text: str, limit: int) -> str:
+    """The longest prefix of text whose weighted length is at most limit."""
+    used, out = 0, []
+    for ch in text:
+        used += _weight(ch)
+        if used > limit:
+            break
+        out.append(ch)
+    return "".join(out)
 
 
 def format_replies(answer: Answer, max_posts: int = 4) -> list:
@@ -59,17 +83,22 @@ def format_replies(answer: Answer, max_posts: int = 4) -> list:
     posts, current = [], ""
     for word in words:
         candidate = (current + " " + word).strip()
-        if x_length(candidate) > X_LIMIT:
-            if current:
-                posts.append(current)
-            current = word[:X_LIMIT]
-        else:
+        if x_length(candidate) <= X_LIMIT:
             current = candidate
+            continue
+        if current:
+            posts.append(current)
+        # A single word longer than a post (or text with no spaces, such as Chinese) is cut by weight.
+        while x_length(word) > X_LIMIT:
+            head = _fit(word, X_LIMIT)
+            posts.append(head)
+            word = word[len(head):]
+        current = word
     if current:
         posts.append(current)
     if len(posts) > max_posts:
         posts = posts[:max_posts]
-        posts[-1] = posts[-1][: X_LIMIT - 1].rstrip() + "…"
+        posts[-1] = _fit(posts[-1], X_LIMIT - 2).rstrip() + "\u2026"
     if footer:
         if posts and x_length(posts[-1] + "\n\n" + footer) <= X_LIMIT:
             posts[-1] = posts[-1] + "\n\n" + footer

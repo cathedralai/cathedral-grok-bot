@@ -250,6 +250,40 @@ class ReplyTest(unittest.TestCase):
         self.assertIn("Receipt:", posts[-1])
 
 
+class WeightTest(unittest.TestCase):
+    def test_cjk_counts_double_and_splits(self):
+        self.assertEqual(x_length("\u6f22" * 10), 20)
+        self.assertEqual(x_length("a https://example.com/very/long/path b"), 1 + 1 + 23 + 1 + 1)
+        posts = format_replies(Answer("\u6f22" * 200, "https://cathedral.computer/v1/receipts/abc"))
+        self.assertTrue(all(x_length(p) <= 280 for p in posts), [x_length(p) for p in posts])
+        self.assertEqual("".join(posts).count("\u6f22"), 200)
+
+    def test_too_long_is_cut_within_limit(self):
+        posts = format_replies(Answer("\u6f22" * 2000, None))
+        self.assertEqual(len(posts), 4)
+        self.assertTrue(all(x_length(p) <= 280 for p in posts))
+
+
+class PaginationTest(unittest.TestCase):
+    def test_mentions_follow_next_token_and_sort_oldest_first(self):
+        from grokbot.x_api import XClient
+        pages = {None: {"data": [{"id": "30", "text": "c"}, {"id": "29", "text": "b"}], "meta": {"next_token": "t2"}},
+                 "t2": {"data": [{"id": "28", "text": "a"}], "meta": {}}}
+        seen = []
+
+        def transport(method, url, headers, body, timeout):
+            if url.endswith("/users/me"):
+                return 200, json.dumps({"data": {"id": "9", "username": "bot"}}).encode()
+            token = None
+            if "pagination_token=" in url:
+                token = url.split("pagination_token=")[1].split("&")[0]
+            seen.append(token)
+            return 200, json.dumps(pages[token]).encode()
+        x = XClient("a", "b", "c", "d", transport=transport)
+        self.assertEqual([m["id"] for m in x.mentions("1")], ["28", "29", "30"])
+        self.assertEqual(seen, [None, "t2"])
+
+
 class BotTest(unittest.TestCase):
     def test_mock_run_answers_each_mention_once(self):
         with tempfile.TemporaryDirectory() as d:

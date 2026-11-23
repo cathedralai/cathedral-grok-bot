@@ -147,6 +147,14 @@ class CathedralTest(unittest.TestCase):
         self.assertEqual(len(api.calls), 1)
 
 
+class FailedRoomTest(unittest.TestCase):
+    def test_failed_room_is_deleted(self):
+        api = FakeAPI(create_answers=[(202, {"state": "failed"})])
+        with self.assertRaises(CathedralError):
+            cathedral(api).create_room()
+        self.assertEqual(api.deleted, ["room-1"])
+
+
 class AgentTest(unittest.TestCase):
     def test_tools_run_in_the_room_and_room_is_deleted(self):
         api = FakeAPI()
@@ -299,6 +307,37 @@ class BotTest(unittest.TestCase):
             self.assertTrue(all("cathedral.computer/v1/receipts/" in r["text"] for r in replies))
             # The thread reached the model: carol's question carries alice's post above it.
             self.assertIn("@alice", chutes.seen[1]["messages"][1]["content"])
+
+    def _bot(self, d, chutes_script, limit, reply=None):
+        x = MockX(str(ROOT / "examples" / "mentions.json"), os.path.join(d, "r.jsonl"))
+        if reply:
+            x.reply = reply
+        api = FakeAPI()
+        chutes = FakeChutes(chutes_script)
+        return Bot(x, Agent(cathedral(api), Chutes("ck", "m", transport=chutes)),
+                   os.path.join(d, "state.json"), limit)
+
+    def test_total_cap_defers_instead_of_dropping(self):
+        with tempfile.TemporaryDirectory() as d:
+            bot = self._bot(d, [{"content": "a1"}, {"content": "a2"}], RateLimit(5, 1))
+            self.assertEqual(bot.poll_once(), 1)
+            self.assertEqual(json.loads(Path(d, "state.json").read_text())["since_id"], "1002")
+            bot.limit = RateLimit(5, 10)
+            self.assertEqual(bot.poll_once(), 1)  # 1003 was kept for later, not lost
+
+    def test_reply_failure_does_not_stop_the_batch(self):
+        from grokbot.x_api import XError
+        calls = []
+
+        def reply(parent, text):
+            calls.append(parent)
+            if parent == "1002":
+                raise XError("X answered 503", 503)
+            return "r-" + parent
+        with tempfile.TemporaryDirectory() as d:
+            bot = self._bot(d, [{"content": "a1"}, {"content": "a2"}], RateLimit(5, 10), reply=reply)
+            self.assertEqual(bot.poll_once(), 1)
+            self.assertEqual(calls, ["1002", "1003"])
 
     def test_rate_limit(self):
         t = [0.0]

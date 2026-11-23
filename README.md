@@ -128,8 +128,8 @@ Defaults you can change in `.env`:
 | `CATHEDRAL_TEMPLATE` | `sealed-1x2` | Sandbox size (`sealed-2x4`, `sealed-4x8`, `sealed-8x16`) |
 | `CATHEDRAL_ROOM_SECONDS` | `600` | Sandbox lifetime; the sandbox stops by itself after this even if the bot dies |
 | `CATHEDRAL_ROOM_MAX_USD` | `0.002` | Most one sandbox may cost |
-| `ANSWERS_PER_AUTHOR_PER_HOUR` | `5` | Per-author limit |
-| `ANSWERS_PER_HOUR` | `200` | Total limit |
+| `ANSWERS_PER_AUTHOR_PER_HOUR` | `5` | Per-author limit; mentions over it are skipped |
+| `ANSWERS_PER_HOUR` | `200` | Total limit; mentions over it wait for a later poll |
 | `BRAVE_API_KEY` | empty | Better web search. Without it: DuckDuckGo, then Wikipedia (DuckDuckGo often refuses datacenter addresses) |
 
 ## Limits to know

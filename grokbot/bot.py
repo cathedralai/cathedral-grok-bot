@@ -115,16 +115,22 @@ class RateLimit:
         self.by_author: dict = defaultdict(deque)
         self.total: deque = deque()
 
-    def allow(self, author: str) -> bool:
+    def check(self, author: str) -> str:
+        """"ok" (and counts it), "author" (this author is over the limit) or "total" (the bot is)."""
         now = self.clock()
         for q in (self.by_author[author], self.total):
             while q and now - q[0] > 3600:
                 q.popleft()
-        if len(self.by_author[author]) >= self.per_hour or len(self.total) >= self.total_per_hour:
-            return False
+        if len(self.total) >= self.total_per_hour:
+            return "total"
+        if len(self.by_author[author]) >= self.per_hour:
+            return "author"
         self.by_author[author].append(now)
         self.total.append(now)
-        return True
+        return "ok"
+
+    def allow(self, author: str) -> bool:
+        return self.check(author) == "ok"
 
 
 class Bot:
@@ -144,12 +150,19 @@ class Bot:
         me = self.x.me()
         answered = 0
         for mention in self.x.mentions(self._since_id()):
-            # Save first: a mention that crashes the bot is skipped, not retried forever.
-            self._save(mention["id"])
             if mention.get("author", "").lower() == me.get("username", "").lower():
+                self._save(mention["id"])
                 continue
-            if not self.limit.allow(mention.get("author", "")):
-                log.info("rate limited @%s, skipping %s", mention.get("author"), mention["id"])
+            verdict = self.limit.check(mention.get("author", ""))
+            if verdict == "total":
+                # The bot's own hourly cap: stop here without moving since_id, so this mention and the
+                # ones after it are answered in a later poll instead of being dropped.
+                log.info("hourly answer cap reached; %s and later mentions wait", mention["id"])
+                break
+            # Save before answering: a mention that crashes the bot is skipped, not retried forever.
+            self._save(mention["id"])
+            if verdict == "author":
+                log.info("@%s is over its hourly limit, skipping %s", mention.get("author"), mention["id"])
                 continue
             try:
                 thread = build_thread(self.x, mention)
@@ -158,8 +171,14 @@ class Bot:
                 log.error("could not answer %s: %s", mention["id"], exc)
                 continue
             parent = mention["id"]
-            for text in format_replies(answer):
-                parent = self.x.reply(parent, text)
+            try:
+                for text in format_replies(answer):
+                    parent = self.x.reply(parent, text)
+            except XError as exc:
+                # Keep going with the other mentions; the answer and its receipt are in this log line.
+                log.error("reply to %s failed (%s); answer was: %r receipt=%s", mention["id"], exc, answer.text,
+                          answer.receipt_url)
+                continue
             answered += 1
             log.info("answered %s room=%s hotel=%s tools=%d timings=%s receipt=%s", mention["id"], answer.room_id,
                      answer.hotel, answer.tool_calls, answer.timings, answer.receipt_url)

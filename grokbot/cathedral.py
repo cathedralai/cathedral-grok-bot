@@ -105,6 +105,8 @@ class Cathedral:
         state = data.get("state")
         while state not in READY_STATES:
             if state in DEAD_STATES:
+                if state not in ("deleted", "deleting"):
+                    self.delete_room(room_id)  # a failed room may still hold a slot and a hold until deleted
                 raise CathedralError(f"room {room_id} is {state}", 0, data.get("error_code") or "", data)
             if self._clock() - t0 > wait_seconds:
                 self.delete_room(room_id)
